@@ -1,0 +1,16 @@
+{
+  "name": "dev.goreng.di",
+  "version": "0.0.1",
+  "displayName": "Dependency Injection",
+  "description": "Dependency Injection made easy for Unity3D",
+  "unity": "2022.3",
+  "unityRelease": "7f1",
+  "dependencies": {
+  },
+  "author": {
+    "name": "Jason Meulenhoff",
+    "email": "nasi@goreng.dev",
+    "url": "https://packages.goreng.dev"
+  },
+  "hideInEditor": false
+}

@@ -14,25 +14,25 @@ namespace Framework.DI.Container
         /// This defines all the singletons that should stay alive per scene, or cross scene if they are single
         /// </summary>
         [Header("This defines all the singletons that should stay alive per scene, or cross scene if they are single")]
-        [SerializeField] private List<MonoBehaviour> _singletons;
+        [SerializeField] private List<MonoBehaviour> _singletons = new List<MonoBehaviour>();
         
         /// <summary>
         /// This defines all the factories that produce unique elements, make sure there is one interface
         /// </summary>
         [Header("This defines all the factories that produce unique elements, make sure there is one interface")]
-        [SerializeField] private List<MonoBehaviour> _factories;
+        [SerializeField] private List<MonoBehaviour> _factories = new List<MonoBehaviour>();
         
         /// <summary>
         /// This defines all the entities that should be unique per request
         /// </summary>
         [Header("This defines all the entities that should be unique per request, registered under their concrete type")]
-        [SerializeField] private List<MonoBehaviour> _entities;
+        [SerializeField] private List<MonoBehaviour> _entities = new List<MonoBehaviour>();
 
         /// <summary>
         /// This defines all the scriptable objects that need to be injected
         /// </summary>
         [Header("This defines all the scriptable objects that should be unique, registered under their interface types")]
-        [SerializeField] private List<ScriptableObject> _scriptableObjects;
+        [SerializeField] private List<ScriptableObject> _scriptableObjects = new List<ScriptableObject>();
     }
 
     /// <summary>

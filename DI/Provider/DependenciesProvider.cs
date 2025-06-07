@@ -3,14 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Framework.DI.Collections;
-using UnityEngine;
 
 namespace Framework.DI.Provider
 {
     public partial class BaseDependencyProvider
     {
-        private readonly Dictionary<Type, Dependency> _dependencies = new Dictionary<Type, Dependency>();
-        private readonly Dictionary<Type, object> _singletons = new Dictionary<Type, object>();
+        // Change the dictionary to store a LIST of dependencies for each type
+        private readonly Dictionary<Type, List<Dependency>> _dependencies = new();
+        private readonly Dictionary<Type, object> _singletons = new();
 
         public BaseDependencyProvider(IDependencyCollection dependencies)
         {
@@ -18,50 +18,52 @@ namespace Framework.DI.Provider
             {
                 foreach (var type in dependency.types)
                 {
-                    _dependencies.TryAdd(type, dependency);
+                    if (!_dependencies.ContainsKey(type))
+                    {
+                        _dependencies[type] = new List<Dependency>();
+                    }
+                    
+                    _dependencies[type].Add(dependency);
                 }
             }
         }
 
         public object Get(Type type)
         {
-            if (!_dependencies.TryGetValue(type, out var dependency))
+            // Check if the requested type is an IEnumerable<T>
+            if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+            {
+                var itemType = type.GetGenericArguments()[0];
+                
+                if (!_dependencies.TryGetValue(itemType, out var dependencyList))
+                {
+                    return Array.CreateInstance(itemType, 0);
+                }
+                
+                var instances = dependencyList.Select(dep => dep.factory(this)).ToArray();
+                var typedArray = Array.CreateInstance(itemType, instances.Length);
+                
+                Array.Copy(instances, typedArray, instances.Length);
+                return typedArray;
+            }
+            
+            if (!_dependencies.TryGetValue(type, out var singleDepList) || !singleDepList.Any())
             {
                 throw new ArgumentException("Type is not a dependency: " + type.FullName);
             }
+
+            var dependency = singleDepList.First();
 
             if (!dependency.isSingleton)
             {
                 return dependency.factory(this);
             }
             
-            // Check all dependencies to see if we have a matching type
-            foreach (var kvp in _singletons)
-            {
-                if (kvp.Value.Equals(null))
-                {
-                    continue;
-                }
-                    
-                if (kvp.Value.GetType().GetInterfaces().Contains(type))
-                {
-                    return kvp.Value;
-                }
-            }
-                
             if (!_singletons.ContainsKey(type))
             {
                 _singletons.Add(type, dependency.factory(this));
             }
-
-            if (!_singletons.TryGetValue(type, out var value) || !value.Equals(null))
-            {
-                return _singletons[type];
-            }
             
-            Debug.LogWarning($"The singleton {type} was destroyed; Overwriting with new instance");
-            _singletons[type] = dependency.factory(this);
-
             return _singletons[type];
         }
     }

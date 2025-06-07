@@ -56,8 +56,66 @@ namespace Framework.DI.Container
     public partial class DependenciesContainer : IDependenciesContainer
     {
         private readonly DependenciesCollection _collection = new();
+        
+        /// <summary>
+        /// Registers a type with the container. The container will automatically
+        /// resolve its constructor's dependencies.
+        /// </summary>
+        /// <typeparam name="TImplementation">The concrete type to register.</typeparam>
+        /// <param name="singleton">True if the instance should be a singleton.</param>
+        public void Register<TImplementation>(bool singleton = true)
+        {
+            var implementationType = typeof(TImplementation);
+            
+            // Register the type against itself and all its interfaces
+            var registrationTypes = new List<Type> { implementationType };
+            registrationTypes.AddRange(implementationType.GetInterfaces());
 
-        public void Register<T>(Func<IDependencyProvider, T> factory, bool singleton)
+            var dependency = new Dependency
+            {
+                factory = DependencyFactory.FromType(implementationType),
+                isSingleton = singleton,
+                types = registrationTypes.Distinct().ToList()
+            };
+            
+            _collection.Add(dependency);
+        }
+
+        /// <summary>
+        /// Registers a concrete implementation type against a specific interface.
+        /// </summary>
+        public void Register<TInterface, TImplementation>(bool singleton = true) where TImplementation : TInterface
+        {
+            // The factory logic is identical to the method above
+            Register<TImplementation>(singleton);
+        }
+        
+        /// <summary>
+        /// Finds all concrete types in the assembly that implement a given interface
+        /// and registers them with the container.
+        /// </summary>
+        /// <typeparam name="TInterface">The interface to scan for.</typeparam>
+        /// <param name="singleton">True if the instances should be singletons.</param>
+        public void RegisterAllOf<TInterface>(bool singleton = true)
+        {
+            var interfaceType = typeof(TInterface);
+            var implementationTypes = interfaceType.Assembly.GetTypes()
+                .Where(t => interfaceType.IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+
+            foreach (var implType in implementationTypes)
+            {
+                var dependency = new Dependency
+                {
+                    factory = DependencyFactory.FromType(implType),
+                    isSingleton = singleton,
+                    // Register each type against the common interface
+                    types = new List<Type> { interfaceType }
+                };
+                _collection.Add(dependency);
+            }
+        }
+
+        public void Register<T>(Func<IDependencyProvider, T> factory, bool singleton = true)
         {
             var dependency = new Dependency
             {
@@ -69,7 +127,7 @@ namespace Framework.DI.Container
             _collection.Add(dependency);
         }
         
-        public void Register<T, T1>(Func<IDependencyProvider, T> factory, bool singleton)
+        public void Register<T, T1>(Func<IDependencyProvider, T> factory, bool singleton = true)
         {
             var dependency = new Dependency
             {

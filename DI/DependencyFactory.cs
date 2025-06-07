@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Runtime.Serialization;
+using System.Linq;
 using Framework.DI.Provider;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -11,56 +11,59 @@ namespace Framework.DI
         public delegate object Delegate(IDependencyProvider provider);
 
         /// <summary>
-        /// Resolve a dependency using a method 
+        /// Creates a factory that dynamically resolves the constructor of a given type
+        /// and its dependencies.
         /// </summary>
-        /// <param name="factory"></param>
-        /// <typeparam name="T"></typeparam>
-        /// <returns></returns>
+        /// <param name="implementationType">The concrete type to create.</param>
+        public static Delegate FromType(Type implementationType)
+        {
+            // This is the "smart" factory logic, now centralized here.
+            return (provider) =>
+            {
+                var constructor = implementationType.GetConstructors()
+                    .OrderByDescending(c => c.GetParameters().Length)
+                    .FirstOrDefault();
+
+                if (constructor == null)
+                {
+                    try
+                    {
+                        return Activator.CreateInstance(implementationType); 
+                    }
+                    catch (MissingMethodException ex) 
+                    {
+                        throw new InvalidOperationException($"Failed to construct '{implementationType.FullName}'. See inner exception.", ex);
+                    }
+                }
+
+                var parameters = constructor.GetParameters();
+                var resolvedArgs = new object[parameters.Length];
+                
+                for (int i = 0; i < parameters.Length; i++)
+                {
+                    resolvedArgs[i] = provider.Get(parameters[i].ParameterType);
+                }
+
+                return constructor.Invoke(resolvedArgs);
+            };
+        }
+
+        /// <summary>
+        /// Wraps an existing factory function.
+        /// </summary>
         public static Delegate Create<T>(Func<IDependencyProvider, T> factory)
         {
-            return (provider) =>
-            {
-                var data = factory.Invoke(provider);
-                var obj = provider.Inject(data);
-                return obj;
-            };
+            return (provider) => factory.Invoke(provider);
         }
-        
-        /// <summary>
-        /// Resolves a dependency from a base C# class
-        /// </summary>
-        /// <typeparam name="T">The class requested</typeparam>
-        /// <returns></returns>
-        public static Delegate FromClass<T>() where T : class, new()
-        {
-            return (provider) =>
-            {
-                var type = typeof(T);
-                var obj = FormatterServices.GetUninitializedObject(type);
 
-                provider.Inject(obj);
-
-                type.GetConstructor(Type.EmptyTypes)?.Invoke(obj, null);
-
-                return (T)obj;
-            };
-        }
-        
         public static Delegate FromScriptableObject<T>(T obj) where T: ScriptableObject
         {
-            return (provider) =>
-            {
-                var clone = Object.Instantiate(obj as T);
-                return clone;
-            };
+            return (provider) => Object.Instantiate(obj);
         }
 
         /// <summary>
-        /// Resolves a dependency from a base Unity Prefab
+        /// Resolves a dependency from a base Unity Prefab, injecting into all children.
         /// </summary>
-        /// <param name="prefab">The prefab we want to use</param>
-        /// <typeparam name="T">The type we want to resolve</typeparam>
-        /// <returns></returns>
         public static Delegate FromPrefab<T>(T prefab) where T : MonoBehaviour
         {
             return (provider) =>
@@ -68,7 +71,7 @@ namespace Framework.DI
                 var wasActive = prefab.gameObject.activeSelf;
                 prefab.gameObject.SetActive(false);
                 
-                var instance = GameObject.Instantiate(prefab);
+                var instance = Object.Instantiate(prefab);
                 instance.name =  $"injected_{prefab.name}";
                 
                 prefab.gameObject.SetActive(wasActive);
@@ -87,11 +90,8 @@ namespace Framework.DI
         }
 
         /// <summary>
-        /// Resolves a dependency from a GameObject
+        /// Injects dependencies into an existing GameObject and its children.
         /// </summary>
-        /// <param name="instance">The instance we want to resolve from</param>
-        /// <typeparam name="T">The type we want resolved</typeparam>
-        /// <returns></returns>
         public static Delegate FromGameObject<T>(T instance) where T : MonoBehaviour
         {
             return (provider) =>

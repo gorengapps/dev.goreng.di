@@ -33,44 +33,37 @@ namespace Framework.DI.Provider
             // Check if the requested type is an IEnumerable<T>
             if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IEnumerable<>))
             {
-                // Get the T from IEnumerable<T>
                 var itemType = type.GetGenericArguments()[0];
-
-                // Find all dependencies registered for that item type
+                
                 if (!_dependencies.TryGetValue(itemType, out var dependencyList))
                 {
-                    // Return an empty list if no implementations are found
                     return Array.CreateInstance(itemType, 0);
                 }
-
-                // Create an instance for each dependency and collect them
-                var instances = dependencyList.Select(dep => dep.factory(this)).ToArray();
                 
-                // Create a correctly typed array to return
+                var instances = dependencyList.Select(dep => dep.factory(this)).ToArray();
                 var typedArray = Array.CreateInstance(itemType, instances.Length);
+                
                 Array.Copy(instances, typedArray, instances.Length);
                 return typedArray;
             }
-
-            // --- EXISTING LOGIC FOR SINGLE DEPENDENCIES ---
-            // For a single dependency, we just take the first one registered.
+            
             if (!_dependencies.TryGetValue(type, out var singleDepList) || !singleDepList.Any())
             {
                 throw new ArgumentException("Type is not a dependency: " + type.FullName);
             }
 
-            var dependency = singleDepList.First(); // Or add logic to handle ambiguity
+            var dependency = singleDepList.First();
 
             if (!dependency.isSingleton)
             {
                 return dependency.factory(this);
             }
             
-            // ... (rest of your singleton logic remains the same) ...
             if (!_singletons.ContainsKey(type))
             {
                 _singletons.Add(type, dependency.factory(this));
             }
+            
             return _singletons[type];
         }
     }
